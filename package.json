@@ -4,8 +4,8 @@
   "description": "This plugin template uses Typescript. If you are familiar with Javascript, Typescript will look very familiar. In fact, valid Javascript code is already valid Typescript code.",
   "main": "code.js",
   "scripts": {
-    "serve": "npx webpack --mode=development --watch",
-    "build": "npx webpack --mode=production"
+    "serve": "NODE_OPTIONS=--openssl-legacy-provider npx webpack --mode=development --watch",
+    "build": "NODE_OPTIONS=--openssl-legacy-provider npx webpack --mode=production"
   },
   "author": "",
   "repository": "",

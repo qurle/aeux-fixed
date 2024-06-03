@@ -1,14 +1,14 @@
 import * as fileType from 'file-type'
 import Vue from 'vue/dist/vue.esm.js'
 import * as aeux from './aeux.js'
-import { saveAs } from 'file-saver';
+import { saveAs } from 'file-saver'
 import './ui.css'
 var vm = new Vue({
-	el: '#app',
-	data: {
+    el: '#app',
+    data: {
         version: '0.8.1-b',
-		count: null,
-		thinking: false,
+        count: null,
+        thinking: false,
         footerMsg: null,
         imagePath: null,
         btnMsg: 'Collecting layer data',
@@ -17,8 +17,8 @@ var vm = new Vue({
             exportRefImage: false,
             imgSaveDialog: false,
         }
-	},
-	methods: {  
+    },
+    methods: {
         exportSelection(e) {
             if (!this.thinking) {
                 this.thinking = 'fetchAEUX'
@@ -26,14 +26,14 @@ var vm = new Vue({
                     let shiftKey = e.shiftKey
                     parent.postMessage({ pluginMessage: { type: 'exportSelection', exportJSON: shiftKey } }, '*')
                     this.btnMsg = 'Transferring to Ae'
-                }, 250);
+                }, 250)
             } else {
                 // cancel
                 this.thinking = null
                 // parent.postMessage({ pluginMessage: { type: 'exportCancel' } }, '*')
             }
         },
-        addRasterizeFlag () {
+        addRasterizeFlag() {
             parent.postMessage({ pluginMessage: { type: 'addRasterizeFlag' } }, '*')
         },
         // detachComponents () {
@@ -48,53 +48,53 @@ var vm = new Vue({
         // imageRefToAe () {
         //     parent.postMessage({ pluginMessage: { type: 'imageRefToAe' } }, '*')
         // },
-        setPrefs () {
+        setPrefs() {
             setTimeout(() => {
                 parent.postMessage({ pluginMessage: { type: 'setPrefs', prefs: this.prefs } }, '*')
-            }, 50);
-            
+            }, 50)
+
         },
     },
-	mounted() {
+    mounted() {
         parent.postMessage({ pluginMessage: { type: 'getPrefs', defaultPrefs: this.prefs } }, '*')      // get the prefs
     }
 })
 
 // receiving messages back from code.ts
 onmessage = (event) => {
-    let msg = event.data.pluginMessage;
-    console.log(msg);
-  
+    let msg = event.data.pluginMessage
+    console.log(msg)
+
     if (msg && msg.type === 'retPrefs') {
-        vm.prefs = msg.prefs 
+        vm.prefs = msg.prefs
     }
 
     if (msg && msg.type === 'exportAEUX') {
         // console.log(msg.imageBytesList);
         if (!msg.data) {
-            setFooterMsg(null, 'Select layers first');
+            setFooterMsg(null, 'Select layers first')
             return
         }
         let aeuxData = aeux.convert(msg.data[0])		// convert layer data
-        console.log(aeuxData);
+        console.log(aeuxData)
 
         var blob = new Blob([JSON.stringify(aeuxData, null, 2)], {
             type: "text/plain;charset=ansi"
-        });
+        })
 
-        saveAs(blob, "AEUX.json");
-        console.log('save');
+        saveAs(blob, "AEUX.json")
+        console.log('save')
 
         vm.thinking = false
     }
 
-	if (msg && msg.type === 'fetchAEUX') {
+    if (msg && msg.type === 'fetchAEUX') {
         // console.log(msg.imageBytesList);
         if (!msg.data) {
-            setFooterMsg(null, 'Select layers first');
+            setFooterMsg(null, 'Select layers first')
             return
         }
-        
+
         let aeuxData = aeux.convert(msg.data[0])		// convert layer data
         // console.log(aeuxData);
 
@@ -111,31 +111,31 @@ onmessage = (event) => {
                 getPrefs: true,
             })
         })
-        .then(response => {
-            if (response.ok) {
-                return response.json()
-            } else {
-                throw Error('failed to connect')
-            }
-        })
-        .then(json => {
-            // get back a message from Ae and display it at the bottom of Sketch
-            console.log(json)
-            let lyrs = json.layerCount        
-            let msg = (lyrs == 1) ? lyrs + ' layer sent to Ae' : lyrs + ' layers sent to Ae'
+            .then(response => {
+                if (response.ok) {
+                    return response.json()
+                } else {
+                    throw Error('failed to connect')
+                }
+            })
+            .then(json => {
+                // get back a message from Ae and display it at the bottom of Sketch
+                console.log(json)
+                let lyrs = json.layerCount
+                let msg = (lyrs == 1) ? lyrs + ' layer sent to Ae' : lyrs + ' layers sent to Ae'
 
-            setFooterMsg(null, msg)
-        })
-        .catch(e => {
-            console.error(e)
-            setFooterMsg(null, 'Failed to connect to Ae');
-        });
+                setFooterMsg(null, msg)
+            })
+            .catch(e => {
+                console.error(e)
+                setFooterMsg(null, 'Failed to connect to Ae')
+            })
     }
-	if (msg && msg.type === 'fetchImagesAndAEUX') {
+    if (msg && msg.type === 'fetchImagesAndAEUX') {
         vm.thinking = 'fetchAEUX'
         let aeuxData = aeux.convert(msg.data[0])		// convert layer data
         // console.log(aeuxData);
-        let imageList = [];
+        let imageList = []
 
         msg.images.forEach(img => {
             const filetype = fileType(img.bytes)
@@ -143,7 +143,7 @@ onmessage = (event) => {
             const name = img.name + '.' + filetype.ext
 
             imageList.push({
-                name, 
+                name,
                 imgData: _arrayBufferToBase64(img.bytes)
             })
             // folder.file(name, blob);
@@ -166,25 +166,25 @@ onmessage = (event) => {
                 data: { layerData: aeuxData }
             })
         })
-        .then(response => {
-            if (response.ok) {
-                return response.json()
-            } else {
-                throw Error('failed to connect')
-            }
-        })
-        .then(json => {
-            // get back a message from Ae and display it at the bottom of Sketch
-            console.log(json)
-            let lyrs = json.layerCount        
-            let msg = (lyrs == 1) ? lyrs + ' layer sent to Ae' : lyrs + ' layers sent to Ae'
+            .then(response => {
+                if (response.ok) {
+                    return response.json()
+                } else {
+                    throw Error('failed to connect')
+                }
+            })
+            .then(json => {
+                // get back a message from Ae and display it at the bottom of Sketch
+                console.log(json)
+                let lyrs = json.layerCount
+                let msg = (lyrs == 1) ? lyrs + ' layer sent to Ae' : lyrs + ' layers sent to Ae'
 
-            setFooterMsg(null, msg)
-        })
-        .catch(e => {
-            console.error(e)
-            setFooterMsg(null, 'Failed to connect to Ae');
-        });
+                setFooterMsg(null, msg)
+            })
+            .catch(e => {
+                console.error(e)
+                setFooterMsg(null, 'Failed to connect to Ae')
+            })
 
         // console.log(aeuxData);
 
@@ -215,7 +215,7 @@ onmessage = (event) => {
     }
     if (msg && msg.type === 'footerMsg') {
         // console.log('LayerCount', msg.layerCount);
-        setFooterMsg(msg.layerCount, msg.action);
+        setFooterMsg(msg.layerCount, msg.action)
     }
 }
 
@@ -231,17 +231,17 @@ function setFooterMsg(layerCount, action) {
 
     setTimeout(() => {
         vm.footerMsg = null
-    }, 5000);
+    }, 5000)
 
     vm.thinking = false
 }
 
-function _arrayBufferToBase64( buffer ) {
-    var binary = '';
-    var bytes = new Uint8Array( buffer );
-    var len = bytes.byteLength;
+function _arrayBufferToBase64(buffer) {
+    var binary = ''
+    var bytes = new Uint8Array(buffer)
+    var len = bytes.byteLength
     for (var i = 0; i < len; i++) {
-        binary += String.fromCharCode( bytes[ i ] );
+        binary += String.fromCharCode(bytes[i])
     }
-    return window.btoa( binary );
+    return window.btoa(binary)
 }

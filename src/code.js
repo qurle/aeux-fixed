@@ -6,7 +6,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-figma.showUI(__html__, { width: 166, height: 180 });
+figma.showUI(__html__, { width: 166, height: 184 });
 let hasFrameData;
 let shapeTree = [];
 let imageHashList = [];
@@ -16,6 +16,7 @@ let prefs = {
     exportRefImage: false,
     imgSaveDialog: false,
 };
+console.log(`%cHello from @qurle`, `font-style:italic; color: #333;`);
 // receive message from the UI
 figma.ui.onmessage = message => {
     if (message.type === 'getPrefs') {
@@ -80,7 +81,7 @@ figma.ui.onmessage = message => {
         let refImg = null, tempGroup, parentFrame;
         if (prefs.exportRefImage) { // include a reference image with transfer
             parentFrame = findFrame(figma.currentPage.selection[0]);
-            let parentFrameName = parentFrame.name.replace(/\s*(\/|\\)\s*/g, '-');
+            let parentFrameName = parentFrame.name.replace(/\s*(\/|\\)\s*/g, '-').replace(/^\*\s/, '').replace(/^\*/, '');
             // group and mask
             let mask = figma.createRectangle();
             mask.x = parentFrame.x;
@@ -106,49 +107,8 @@ figma.ui.onmessage = message => {
         if (rasterizeList.length > 0) {
             rasterizeList = [...new Set(rasterizeList)]; // remove duplicates
             // console.log('RASTERIZELIST', rasterizeList);
-            function clone(val) {
-                return JSON.parse(JSON.stringify(val));
-            }
-            function asyncCollectHashes(id, cb) {
-                setTimeout(() => {
-                    // console.log('done with', item);
-                    let shape = figma.getNodeById(id);
-                    // disable effects
-                    let effectVisList = []; // to store the effect visibility
-                    let effects;
-                    if (shape.effects) {
-                        effects = clone(shape.effects);
-                        effects.forEach(effect => {
-                            effectVisList.push(effect.visible);
-                            if (effect.type == 'DROP_SHADOW' || effect.type == 'LAYER_BLUR') {
-                                effect.visible = false;
-                            }
-                        });
-                        shape.effects = effects;
-                    }
-                    let compMult = 3;
-                    let imgScale = Math.min(3500 / Math.max(shape.width, shape.height), compMult); // limit it to 4000px
-                    // console.log('IMAGESCALE', imgScale, shape);
-                    shape.exportAsync({
-                        format: "PNG",
-                        useAbsoluteBounds: true,
-                        constraint: { type: "SCALE", value: imgScale }
-                    })
-                        .then(img => {
-                        imageHashList.push({
-                            hash: figma.createImage(img).hash,
-                            id: `${shape.name.replace(/^\*\s/, '').replace(/^\*/, '')}_${id}`
-                        });
-                    });
-                    // re-enable effects 
-                    for (let i = 0; i < effectVisList.length; i++) {
-                        effects[i].visible = effectVisList[i];
-                    }
-                    shape.effects = effects;
-                    cb();
-                }, 100);
-            }
             let requests = rasterizeList.map((item) => {
+                console.log('iten++', item);
                 return new Promise((resolve) => {
                     asyncCollectHashes(item, resolve);
                 });
@@ -157,8 +117,10 @@ figma.ui.onmessage = message => {
                 .then(() => storeImageData(imageHashList, shapeTree, refImg))
                 .then(() => {
                 // remove the reference mask
-                tempGroup.parent.appendChild(parentFrame);
-                tempGroup.remove();
+                if (tempGroup) {
+                    tempGroup.parent.appendChild(parentFrame);
+                    tempGroup.remove();
+                }
             });
         }
         else {
@@ -174,6 +136,52 @@ figma.ui.onmessage = message => {
             }
         }
         // console.log('imageHashList', imageHashList);
+        function clone(val) {
+            return JSON.parse(JSON.stringify(val));
+        }
+        function asyncCollectHashes(id, cb) {
+            setTimeout(() => {
+                // console.log('done with', item);
+                let shape = figma.getNodeById(id);
+                // disable effects
+                let effectVisList = []; // to store the effect visibility
+                let effects;
+                if (shape.effects) {
+                    effects = clone(shape.effects);
+                    effects.forEach(effect => {
+                        effectVisList.push(effect.visible);
+                        if (effect.type == 'DROP_SHADOW' || effect.type == 'LAYER_BLUR') {
+                            effect.visible = false;
+                        }
+                    });
+                    shape.effects = effects;
+                }
+                let compMult = 3;
+                let imgScale = Math.min(3500 / Math.max(shape.width, shape.height), compMult); // limit it to 4000px
+                // console.log('IMAGESCALE', imgScale, shape);
+                shape.exportAsync({
+                    format: "PNG",
+                    useAbsoluteBounds: true,
+                    constraint: { type: "SCALE", value: imgScale }
+                })
+                    .then(img => {
+                    imageHashList.push({
+                        hash: figma.createImage(img).hash,
+                        id: `${shape.name.replace(/^\*\s/, '').replace(/^\*/, '')}_${id}`
+                    });
+                })
+                    .then(() => {
+                    // re-enable effects 
+                    for (let i = 0; i < effectVisList.length; i++) {
+                        effects[i].visible = effectVisList[i];
+                    }
+                    shape.effects = effects;
+                })
+                    .then(() => {
+                    cb();
+                });
+            }, 100);
+        }
     }
     if (message.type === 'addRasterizeFlag') {
         if (figma.currentPage.selection.length < 1) {
@@ -211,7 +219,8 @@ figma.ui.onmessage = message => {
     // console.log('send message back to ui');
 };
 function nodeToObj(nodes) {
-    //   console.log('nodes', nodes);
+    console.log(`Converting nodes to object:`);
+    console.log(nodes);
     if (nodes.length < 1) {
         return [];
     }
@@ -221,8 +230,8 @@ function nodeToObj(nodes) {
     if (nodes[0] && ((nodes[0].type === 'FRAME' && nodes[0].parent.type === 'PAGE') ||
         // (nodes[0].type === 'FRAME' && nodes[0].layoutMode === 'NONE') || 
         (nodes[0].type === 'COMPONENT' && nodes[0].parent.type === 'PAGE'))) { // a frame or a component master outside of a frame is directly selected
+        console.log('HEY');
         console.log('GOT A FRAME');
-        // console.log(nodes[0].children);
         hasFrameData = true; // dont need to get the frame data
         shapeTree.push(getElement(nodes[0], false));
         nodes = nodes[0].children;
@@ -237,7 +246,7 @@ function nodeToObj(nodes) {
             if (node.parent.type === 'PAGE') {
                 return;
             } // layer is outside of a frame 
-            // console.log('get the frame data');
+            console.log(`${node.name}: has frame data`);
             let frame = findFrame(node);
             // console.log('frame:', frame);
             let frameData = getElement(frame, true); // skip gathering children data
@@ -250,13 +259,13 @@ function nodeToObj(nodes) {
     // console.log('arr: ', arr);
     return arr;
     function getElement(node, skipChildren) {
-        // console.log('node', node.name);
+        console.log(`${node.name}: getting element`);
         let rasterize = false;
         let obj = {
             children: [],
             type: null,
         };
-        if (node.name && node.name.charAt(0) == '*') {
+        if (node.name && node.name.charAt(0) == '*' && node != findFrame(node)) {
             console.log('rasterize', node);
             rasterizeList.push(node.id);
             rasterize = true;
@@ -265,6 +274,8 @@ function nodeToObj(nodes) {
             try {
                 let element = node[key];
                 // console.log(element);
+                const name = node.name || key;
+                console.log(`${name}: getting ${key}`);
                 if (key === 'children' && !skipChildren && !rasterize) {
                     element = nodeToObj(element);
                 }
@@ -306,14 +317,16 @@ function nodeToObj(nodes) {
                 }
                 // layer.fontName !== (figma.mixed)) ? layer.fontName.family : layer.getRangeFontName(0,1).family
                 // if (key === 'parent') { console.log(element); }
+                console.log(`Setting ${name}[${key}] = ${element}`);
                 obj[key] = element;
             }
             catch (error) {
-                console.log('ERROR', error);
+                console.log('ERROR', `Catching error: ${error}`);
             }
         }
         // keep track of Auto-layout frames for alignment of children
         if (node.type === 'FRAME' && node.layoutMode !== 'NONE') {
+            console.log(`${node.name} is autolayout`);
             obj.type = 'AUTOLAYOUT';
         }
         return obj;
@@ -330,18 +343,21 @@ function nodeToObj(nodes) {
 }
 function storeImageData(imageHashList, layers, refImg) {
     return __awaiter(this, void 0, void 0, function* () {
-        console.log('layers', layers);
+        console.log(`Storing image data`);
+        // console.log('imageHashList++', imageHashList);
         for (const i in imageHashList) {
-            // console.log(element[i]);
+            // console.log('i', i);
             const hash = imageHashList[i].hash;
+            // console.log('hash', hash);
             const name = imageHashList[i].id
-                .replace(/:/g, '-') // remove colons
+                .replace(/[\\:"*?%<>|]/g, '-') // replace illegal characters
                 .replace(/\s*(\/|\\)\s*/g, '-'); // remove slashes
+            // console.log('name', name);
             try {
                 let image = figma.getImageByHash(hash);
                 let bytes = yield image.getBytesAsync();
                 imageBytesList.push({ name, bytes });
-                // console.log(bytes);
+                // console.log('bytes', bytes);
             }
             catch (error) { }
         }
@@ -354,8 +370,7 @@ function storeImageData(imageHashList, layers, refImg) {
     });
 }
 function findFrame(node) {
-    // console.log('node:', node);
-    // console.log('node.type:', node.type);
+    console.log(`${node.name}: finding frame data`);
     try {
         if ((node.type !== 'FRAME' && !(node.type === 'COMPONENT' && node.parent.type === 'PAGE'))
             || (node.type === 'FRAME' && node.parent.type === 'FRAME')) {
@@ -372,6 +387,9 @@ function findFrame(node) {
     }
 }
 function addMagicStar(selection, layerCount) {
+    if (findFrame(selection[0]) == selection[0]) { // selection is the top most frame
+        selection = selection[0].children; // select all the children
+    }
     selection.forEach(shape => {
         if (shape.name.charAt(0) !== '*') {
             shape.name = `* ${shape.name}`;
@@ -383,7 +401,7 @@ function addMagicStar(selection, layerCount) {
 function flattenRecursive(selection, layerCount) {
     try {
         selection.forEach(shape => {
-            console.log('try flattening', shape);
+            console.log(`${shape}: flattening`);
             if (shape.type == 'BOOLEAN_OPERATION') {
                 figma.flatten([shape]);
                 layerCount++;
@@ -437,7 +455,7 @@ function rasterizeSelection(selection, layerCount) {
                 shape.relativeTransform = removeTransform;
                 shape.exportAsync(options)
                     .then(img => {
-                    // console.log(figma.createImage(img));
+                    console.log(`${img}: rasterizing`);
                     let rect = figma.createRectangle();
                     shape.parent.appendChild(rect);
                     rect.x = shape.x;
